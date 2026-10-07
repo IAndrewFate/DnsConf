@@ -1,0 +1,46 @@
+name: Keepalive
+
+# GitHub отключает запланированные workflow в публичных репозиториях,
+# если в репозитории 60 дней не было активности (запуски задач не считаются).
+# Этот шаг раз в 30 дней делает пустой коммит, чтобы счётчик обнулялся.
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'   # каждый понедельник 03:17 UTC = 06:17 МСК
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Commit timestamp every 30 days
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          LAST=$(git log -1 --format=%ct -- .keepalive || true)
+          NOW=$(date +%s)
+          if [ -z "$LAST" ]; then
+            DAYS=999
+          else
+            DAYS=$(( (NOW - LAST) / 86400 ))
+          fi
+          echo "Last keepalive commit: ${DAYS} day(s) ago"
+
+          if [ "$DAYS" -ge 30 ]; then
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive
+            git add .keepalive
+            git commit -m "keepalive: $(date -u +%Y-%m-%d)"
+            git push
+            echo "Keepalive commit created."
+          else
+            echo "Keepalive is fresh, no commit needed."
+          fi
